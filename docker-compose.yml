@@ -1,0 +1,174 @@
+version: '3.8'
+
+services:
+  # MongoDB Database
+  mongodb:
+    image: mongo:latest
+    container_name: manifest-mongodb
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: manifestengine123
+      MONGO_INITDB_DATABASE: manifest-engine
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+    networks:
+      - manifest-network
+
+  # Redis Cache
+  redis:
+    image: redis:alpine
+    container_name: manifest-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - manifest-network
+
+  # Backend API
+  backend:
+    build:
+      context: ./src/backend
+      dockerfile: Dockerfile
+    container_name: manifest-backend
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 3001
+      MONGODB_URI: mongodb://admin:manifestengine123@mongodb:27017/manifest-engine?authSource=admin
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: ${JWT_SECRET}
+      AI_ENGINE_URL: http://ai-engine:8000
+    ports:
+      - "3001:3001"
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+    depends_on:
+      - mongodb
+      - redis
+    networks:
+      - manifest-network
+
+  # Frontend React App
+  frontend:
+    build:
+      context: ./src/frontend
+      dockerfile: Dockerfile
+    container_name: manifest-frontend
+    restart: unless-stopped
+    environment:
+      REACT_APP_API_URL: http://localhost:3001
+      REACT_APP_WS_URL: ws://localhost:3001
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    networks:
+      - manifest-network
+
+  # AI Engine
+  ai-engine:
+    build:
+      context: ./src/ai-engine
+      dockerfile: Dockerfile
+    container_name: manifest-ai-engine
+    restart: unless-stopped
+    environment:
+      REDIS_URL: redis://redis:6379
+      CUDA_VISIBLE_DEVICES: 0
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/app/data
+      - ./models:/app/models
+    depends_on:
+      - redis
+    networks:
+      - manifest-network
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+  # Nginx Reverse Proxy
+  nginx:
+    image: nginx:alpine
+    container_name: manifest-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf
+      - ./nginx/ssl:/etc/nginx/ssl
+    depends_on:
+      - frontend
+      - backend
+      - ai-engine
+    networks:
+      - manifest-network
+
+  # Celery Worker
+  celery-worker:
+    build:
+      context: ./src/ai-engine
+      dockerfile: Dockerfile
+    container_name: manifest-celery-worker
+    restart: unless-stopped
+    command: celery -A main.celery_app worker --loglevel=info
+    environment:
+      REDIS_URL: redis://redis:6379
+    volumes:
+      - ./data:/app/data
+    depends_on:
+      - redis
+      - ai-engine
+    networks:
+      - manifest-network
+
+  # Celery Beat (Scheduler)
+  celery-beat:
+    build:
+      context: ./src/ai-engine
+      dockerfile: Dockerfile
+    container_name: manifest-celery-beat
+    restart: unless-stopped
+    command: celery -A main.celery_app beat --loglevel=info
+    environment:
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      - redis
+      - ai-engine
+    networks:
+      - manifest-network
+
+  # Flower (Celery Monitoring)
+  flower:
+    image: mher/flower
+    container_name: manifest-flower
+    restart: unless-stopped
+    environment:
+      CELERY_BROKER_URL: redis://redis:6379
+      FLOWER_PORT: 5555
+    ports:
+      - "5555:5555"
+    depends_on:
+      - redis
+    networks:
+      - manifest-network
+
+networks:
+  manifest-network:
+    driver: bridge
+
+volumes:
+  mongodb_data:
+  redis_data:
