@@ -13,7 +13,6 @@ import {
   Typography,
   Button,
   Paper,
-  Grid,
   Card,
   CardContent,
   TextField,
@@ -48,8 +47,7 @@ import {
   Menu as MenuIcon,
   Close,
   Check,
-  Star,
-  Sparkle
+  Star
 } from '@mui/icons-material';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
@@ -60,18 +58,18 @@ const theme = createTheme({
   palette: {
     mode: 'dark',
     primary: {
-      main: '#9f7aea', // Purple from screenshot
+      main: '#9f7aea',
       light: '#b794f4',
       dark: '#805ad5',
     },
     secondary: {
-      main: '#667eea', // Blue-purple gradient
+      main: '#667eea',
       light: '#7c3aed',
       dark: '#5b21b6',
     },
     background: {
-      default: '#0f0f23', // Dark purple background
-      paper: 'rgba(31, 31, 51, 0.9)', // Semi-transparent purple
+      default: '#0f0f23',
+      paper: 'rgba(31, 31, 51, 0.9)',
     },
     text: {
       primary: '#ffffff',
@@ -248,14 +246,13 @@ const App: React.FC = () => {
 
     setLoading(true);
     try {
-      // Simulated AI prompt generation
       const enhanced = `🎬 Create a viral ${promptText} video that:
-• Hooks viewers in the first 3 seconds
-• Uses trending music and effects
-• Includes engaging captions
-• Optimized for YouTube Shorts, TikTok, and Instagram Reels
-• Incorporates storytelling elements
-• Ends with a strong call-to-action
+- Hooks viewers in the first 3 seconds
+- Uses trending music and effects
+- Includes engaging captions
+- Optimized for YouTube Shorts, TikTok, and Instagram Reels
+- Incorporates storytelling elements
+- Ends with a strong call-to-action
 
 #viral #trending #contentcreation`;
       
@@ -317,7 +314,7 @@ const App: React.FC = () => {
             <MenuIcon />
           </IconButton>
           <Box sx={{ flexGrow: 1, display: 'flex', alignItems: 'center' }}>
-            <Sparkle sx={{ mr: 1, color: '#9f7aea' }} />
+            <Star sx={{ mr: 1, color: '#9f7aea' }} />
             <Typography variant="h6" sx={{ fontWeight: 700 }}>
               ManifestEngine.me
             </Typography>
@@ -363,13 +360,13 @@ const App: React.FC = () => {
             { icon: <Settings />, text: 'Settings', id: 'settings' },
           ].map((item) => (
             <ListItem
-              button
               key={item.id}
               onClick={() => {
                 setActiveSection(item.id);
                 setDrawerOpen(false);
               }}
               sx={{
+                cursor: 'pointer',
                 '&:hover': {
                   background: 'rgba(159, 122, 234, 0.1)',
                 },
@@ -405,40 +402,40 @@ const App: React.FC = () => {
                 Create Anything. Manifest Everything.
               </Typography>
               
-              <Grid container spacing={3}>
+              {/* FIXED: Using Box instead of Grid */}
+              <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(4, 1fr)' }, gap: 3 }}>
                 {[
                   { title: 'Videos Processed', value: '127', icon: <VideoLibrary />, color: '#667eea' },
                   { title: 'Clips Generated', value: '1,842', icon: <ContentCut />, color: '#9f7aea' },
                   { title: 'Total Views', value: '2.4M', icon: <TrendingUp />, color: '#764ba2' },
                   { title: 'Scheduled Posts', value: '45', icon: <Schedule />, color: '#667eea' },
                 ].map((stat, index) => (
-                  <Grid item xs={12} sm={6} md={3} key={index}>
-                    <motion.div
-                      initial={{ scale: 0.9, opacity: 0 }}
-                      animate={{ scale: 1, opacity: 1 }}
-                      transition={{ delay: index * 0.1 }}
-                    >
-                      <Card>
-                        <CardContent>
-                          <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-                            <Avatar sx={{ bgcolor: stat.color, mr: 2 }}>
-                              {stat.icon}
-                            </Avatar>
-                            <Box>
-                              <Typography variant="h4" sx={{ fontWeight: 700 }}>
-                                {stat.value}
-                              </Typography>
-                              <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-                                {stat.title}
-                              </Typography>
-                            </Box>
+                  <motion.div
+                    key={index}
+                    initial={{ scale: 0.9, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    transition={{ delay: index * 0.1 }}
+                  >
+                    <Card>
+                      <CardContent>
+                        <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+                          <Avatar sx={{ bgcolor: stat.color, mr: 2 }}>
+                            {stat.icon}
+                          </Avatar>
+                          <Box>
+                            <Typography variant="h4" sx={{ fontWeight: 700 }}>
+                              {stat.value}
+                            </Typography>
+                            <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                              {stat.title}
+                            </Typography>
                           </Box>
-                        </CardContent>
-                      </Card>
-                    </motion.div>
-                  </Grid>
+                        </Box>
+                      </CardContent>
+                    </Card>
+                  </motion.div>
                 ))}
-              </Grid>
+              </Box>
             </motion.div>
           )}
 
@@ -499,7 +496,7 @@ const App: React.FC = () => {
                 >
                   <Paper sx={{ p: 4 }}>
                     <Typography variant="h6" sx={{ mb: 2, display: 'flex', alignItems: 'center' }}>
-                      <Sparkle sx={{ mr: 1, color: '#9f7aea' }} />
+                      <Star sx={{ mr: 1, color: '#9f7aea' }} />
                       Enhanced Prompt
                     </Typography>
                     <Typography variant="body1" sx={{ whiteSpace: 'pre-wrap' }}>

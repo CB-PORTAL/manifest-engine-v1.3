@@ -5,6 +5,7 @@ Create Anything. Manifest Everything.
 
 import os
 import sys
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import json
 import asyncio
 import logging
@@ -20,12 +21,55 @@ import uvicorn
 
 import cv2
 import numpy as np
-from moviepy.editor import VideoFileClip, concatenate_videoclips
-import whisper
-import torch
-from transformers import pipeline
-import redis
-from celery import Celery
+try:
+    from moviepy.editor import VideoFileClip, concatenate_videoclips
+    MOVIEPY_AVAILABLE = True
+except ImportError:
+    print("Warning: MoviePy not available - video processing limited")
+    MOVIEPY_AVAILABLE = False
+    VideoFileClip = None
+    concatenate_videoclips = None
+
+# Try to import optional dependencies
+try:
+    import whisper
+    WHISPER_AVAILABLE = True
+except ImportError:
+    print("Warning: Whisper not available - transcription disabled")
+    WHISPER_AVAILABLE = False
+    whisper = None
+
+try:
+    import torch
+    from transformers import pipeline
+    TORCH_AVAILABLE = True
+except ImportError:
+    print("Warning: Torch/Transformers not available - sentiment analysis disabled")
+    TORCH_AVAILABLE = False
+    torch = None
+    pipeline = None
+
+try:
+    import redis
+    REDIS_AVAILABLE = True
+    redis_client = redis.Redis(host='localhost', port=6379, db=0, decode_responses=True)
+except:
+    print("Warning: Redis not available - caching disabled")
+    REDIS_AVAILABLE = False
+    redis_client = None
+
+try:
+    from celery import Celery
+    CELERY_AVAILABLE = True
+    celery_app = Celery(
+        'manifest_engine',
+        broker='redis://localhost:6379/0',
+        backend='redis://localhost:6379/0'
+    )
+except:
+    print("Warning: Celery not available - background tasks disabled")
+    CELERY_AVAILABLE = False
+    celery_app = None
 
 # Configure logging
 logging.basicConfig(
@@ -50,25 +94,33 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Initialize AI models
-device = "cuda" if torch.cuda.is_available() else "cpu"
-logger.info(f"Using device: {device}")
+# Initialize AI models if available
+if TORCH_AVAILABLE:
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    logger.info(f"Using device: {device}")
+else:
+    device = "cpu"
+    logger.info("Torch not available - using CPU mode")
 
-# Load Whisper model for transcription
-whisper_model = whisper.load_model("base", device=device)
+# Load Whisper model if available
+if WHISPER_AVAILABLE and whisper:
+    try:
+        whisper_model = whisper.load_model("base", device=device)
+    except:
+        print("Warning: Could not load Whisper model")
+        whisper_model = None
+else:
+    whisper_model = None
 
-# Load sentiment analysis pipeline
-sentiment_analyzer = pipeline("sentiment-analysis", device=0 if device == "cuda" else -1)
-
-# Redis connection for caching
-redis_client = redis.Redis(host='localhost', port=6379, db=0, decode_responses=True)
-
-# Celery configuration
-celery_app = Celery(
-    'manifest_engine',
-    broker='redis://localhost:6379/0',
-    backend='redis://localhost:6379/0'
-)
+# Load sentiment analyzer if available
+if TORCH_AVAILABLE and pipeline:
+    try:
+        sentiment_analyzer = pipeline("sentiment-analysis", device=0 if device == "cuda" else -1)
+    except:
+        print("Warning: Could not load sentiment analyzer")
+        sentiment_analyzer = None
+else:
+    sentiment_analyzer = None
 
 # Data models
 class VideoProcessRequest(BaseModel):
@@ -115,11 +167,6 @@ class VideoProcessor:
             
             logger.info(f"Processing video: {filename}")
             
-            # Load video
-            video = VideoFileClip(str(video_path))
-            duration = video.duration
-            fps = video.fps
-            
             # Initialize results
             results = {
                 "transcript": None,
@@ -129,11 +176,19 @@ class VideoProcessor:
                 "suggested_hashtags": [],
                 "scenes": [],
                 "clips": [],
-                "duration": duration
+                "duration": 0
             }
             
-            # Step 1: Transcribe audio if requested
-            if settings.get("transcribe", True):
+            # Get video duration using OpenCV
+            cap = cv2.VideoCapture(str(video_path))
+            if cap.isOpened():
+                fps = cap.get(cv2.CAP_PROP_FPS)
+                frame_count = cap.get(cv2.CAP_PROP_FRAME_COUNT)
+                results["duration"] = frame_count / fps if fps > 0 else 0
+                cap.release()
+            
+            # Step 1: Transcribe audio if requested and available
+            if settings.get("transcribe", True) and whisper_model:
                 logger.info("Transcribing audio...")
                 transcript = await self.transcribe_audio(video_path)
                 results["transcript"] = transcript
@@ -153,18 +208,24 @@ class VideoProcessor:
                 results["suggested_titles"] = viral_analysis["titles"]
                 results["suggested_hashtags"] = viral_analysis["hashtags"]
             
-            # Step 4: Generate clips
-            if settings.get("generateClips", True):
+            # Step 4: Generate clips if MoviePy is available
+            if settings.get("generateClips", True) and MOVIEPY_AVAILABLE:
                 logger.info("Generating clips...")
+                video = VideoFileClip(str(video_path))
                 clips = await self.generate_clips(video, results["scenes"], settings)
                 results["clips"] = clips
+                video.close()
             
-            # Cache results
-            redis_client.setex(
-                f"video_analysis:{video_id}",
-                3600,  # Cache for 1 hour
-                json.dumps(results)
-            )
+            # Cache results if Redis is available
+            if REDIS_AVAILABLE and redis_client:
+                try:
+                    redis_client.setex(
+                        f"video_analysis:{video_id}",
+                        3600,  # Cache for 1 hour
+                        json.dumps(results)
+                    )
+                except:
+                    pass
             
             logger.info(f"Processing complete for video: {filename}")
             return VideoAnalysis(**results)
@@ -175,6 +236,9 @@ class VideoProcessor:
     
     async def transcribe_audio(self, video_path: Path) -> str:
         """Transcribe audio using Whisper"""
+        if not whisper_model:
+            return ""
+        
         try:
             result = whisper_model.transcribe(str(video_path))
             return result["text"]
@@ -187,7 +251,7 @@ class VideoProcessor:
         if not text:
             return []
         
-        # Simple keyword extraction (can be enhanced with NLP libraries)
+        # Simple keyword extraction
         import re
         from collections import Counter
         
@@ -221,7 +285,7 @@ class VideoProcessor:
         scene_start = 0
         threshold = 30  # Adjust based on needs
         
-        for i in range(0, frame_count, int(fps)):  # Check every second
+        for i in range(0, frame_count, int(fps) if fps > 0 else 30):  # Check every second
             cap.set(cv2.CAP_PROP_POS_FRAMES, i)
             ret, frame = cap.read()
             
@@ -237,16 +301,16 @@ class VideoProcessor:
                 if mean_diff > threshold:
                     # Scene change detected
                     scenes.append({
-                        "start": scene_start / fps,
-                        "end": i / fps,
-                        "duration": (i - scene_start) / fps
+                        "start": scene_start / fps if fps > 0 else 0,
+                        "end": i / fps if fps > 0 else 0,
+                        "duration": (i - scene_start) / fps if fps > 0 else 0
                     })
                     scene_start = i
             
             prev_frame = gray
         
         # Add final scene
-        if scene_start < frame_count:
+        if scene_start < frame_count and fps > 0:
             scenes.append({
                 "start": scene_start / fps,
                 "end": frame_count / fps,
@@ -282,7 +346,7 @@ class VideoProcessor:
             cap.release()
         
         # Analyze transcript sentiment if available
-        if transcript:
+        if transcript and sentiment_analyzer:
             try:
                 sentiment = sentiment_analyzer(transcript[:512])  # Limit text length
                 if sentiment[0]['label'] == 'POSITIVE':
@@ -299,7 +363,7 @@ class VideoProcessor:
             ]
             
             # Generate hashtags
-            from .extract_keywords import keywords
+            keywords = self.extract_keywords(transcript)
             hashtags = [f"#{kw}" for kw in keywords[:5]]
             hashtags.extend(["#viral", "#trending", "#fyp", "#foryou", "#mustwatch"])
         
@@ -318,6 +382,10 @@ class VideoProcessor:
     
     async def generate_clips(self, video: VideoFileClip, scenes: List[Dict], settings: Dict) -> List[Dict]:
         """Generate clips from video based on scenes"""
+        if not MOVIEPY_AVAILABLE:
+            logger.warning("MoviePy not available - skipping clip generation")
+            return []
+        
         clips_data = []
         num_clips = min(settings.get("numClips", 5), len(scenes))
         target_duration = settings.get("clipDuration", 30)
@@ -407,8 +475,9 @@ async def root():
         "status": "operational",
         "device": device,
         "models": {
-            "whisper": "base",
-            "sentiment": "loaded"
+            "whisper": "available" if whisper_model else "not available",
+            "sentiment": "available" if sentiment_analyzer else "not available",
+            "moviepy": "available" if MOVIEPY_AVAILABLE else "not available"
         }
     }
 
@@ -423,10 +492,14 @@ async def health_check():
 async def process_video(request: VideoProcessRequest, background_tasks: BackgroundTasks):
     """Process video with AI"""
     try:
-        # Check cache first
-        cached = redis_client.get(f"video_analysis:{request.videoId}")
-        if cached:
-            return JSONResponse(content=json.loads(cached))
+        # Check cache first if Redis available
+        if REDIS_AVAILABLE and redis_client:
+            try:
+                cached = redis_client.get(f"video_analysis:{request.videoId}")
+                if cached:
+                    return JSONResponse(content=json.loads(cached))
+            except:
+                pass
         
         # Process video
         analysis = await processor.process_video(
@@ -444,12 +517,16 @@ async def process_video(request: VideoProcessRequest, background_tasks: Backgrou
 @app.post("/transcribe")
 async def transcribe_video(file: UploadFile = File(...)):
     """Transcribe video audio"""
+    if not whisper_model:
+        return {"error": "Transcription not available - Whisper not installed"}
+    
     try:
         # Save uploaded file temporarily
-        temp_path = Path(f"/tmp/{file.filename}")
-        with open(temp_path, "wb") as f:
+        import tempfile
+        with tempfile.NamedTemporaryFile(delete=False, suffix=file.filename) as tmp:
             content = await file.read()
-            f.write(content)
+            tmp.write(content)
+            temp_path = Path(tmp.name)
         
         # Transcribe
         transcript = await processor.transcribe_audio(temp_path)
@@ -468,10 +545,11 @@ async def analyze_viral(file: UploadFile = File(...)):
     """Analyze video for viral potential"""
     try:
         # Save uploaded file temporarily
-        temp_path = Path(f"/tmp/{file.filename}")
-        with open(temp_path, "wb") as f:
+        import tempfile
+        with tempfile.NamedTemporaryFile(delete=False, suffix=file.filename) as tmp:
             content = await file.read()
-            f.write(content)
+            tmp.write(content)
+            temp_path = Path(tmp.name)
         
         # Analyze
         analysis = await processor.analyze_viral_potential(temp_path, None)
@@ -484,21 +562,6 @@ async def analyze_viral(file: UploadFile = File(...)):
     except Exception as e:
         logger.error(f"Analysis error: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
-
-# Celery Tasks
-@celery_app.task
-def process_video_task(video_id: str, filename: str, settings: dict):
-    """Background task for video processing"""
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    
-    try:
-        result = loop.run_until_complete(
-            processor.process_video(video_id, filename, settings)
-        )
-        return result.dict()
-    finally:
-        loop.close()
 
 if __name__ == "__main__":
     # Print startup banner
@@ -514,8 +577,20 @@ if __name__ == "__main__":
        
        Device: {}
        
+       Components:
+       - MoviePy: {}
+       - Whisper: {}
+       - Sentiment: {}
+       - Redis: {}
+       
     ============================================
-    """.format(device))
+    """.format(
+        device,
+        "✓" if MOVIEPY_AVAILABLE else "✗",
+        "✓" if whisper_model else "✗",
+        "✓" if sentiment_analyzer else "✗",
+        "✓" if REDIS_AVAILABLE else "✗"
+    ))
     
     # Run server
     uvicorn.run(
