@@ -11,7 +11,7 @@
 
 <br>
 
-# [📥 DOWNLOAD NOW](https://github.com/CB-PORTAL/manifest-engine-v1.3/releases/latest/download/ManifestEngine-v1.3-Installer.exe)
+# # [📥 DOWNLOAD NOW](https://github.com/CB-PORTAL/manifest-engine-v1.3/releases/download/v1.3.1/ManifestEngine-v1.3-Setup.exe)
 
 **⬆️ Click the button above to download and install in 60 seconds (Features and technology not yet fully functional) ⬆️**
 
