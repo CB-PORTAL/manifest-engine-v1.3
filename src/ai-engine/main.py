@@ -380,7 +380,7 @@ class VideoProcessor:
             "hashtags": hashtags[:10] if hashtags else ["#viral", "#trending", "#video"]
         }
     
-    async def generate_clips(self, video: VideoFileClip, scenes: List[Dict], settings: Dict) -> List[Dict]:
+    async def generate_clips(self, video: Any, scenes: List[Dict], settings: Dict) -> List[Dict]:
         """Generate clips from video based on scenes"""
         if not MOVIEPY_AVAILABLE:
             logger.warning("MoviePy not available - skipping clip generation")
@@ -442,7 +442,7 @@ class VideoProcessor:
         
         return clips_data
     
-    def generate_thumbnail(self, clip: VideoFileClip, filename: str) -> str:
+    def generate_thumbnail(self, clip: Any, filename: str) -> str:
         """Generate thumbnail from clip"""
         try:
             # Get frame at 1/3 of the clip duration
