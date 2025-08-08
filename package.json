@@ -46,15 +46,16 @@
   "homepage": "https://github.com/yourusername/manifest-engine#readme",
   "dependencies": {
     "concurrently": "^7.6.0",
+    "cross-env": "^7.0.3",
     "dotenv": "^16.0.3",
-    "cross-env": "^7.0.3"
+    "node-fetch": "^2.7.0"
   },
   "devDependencies": {
-    "nodemon": "^2.0.20",
     "eslint": "^8.36.0",
-    "prettier": "^2.8.7",
     "husky": "^8.0.3",
-    "lint-staged": "^13.2.0"
+    "lint-staged": "^13.2.0",
+    "nodemon": "^2.0.20",
+    "prettier": "^2.8.7"
   },
   "engines": {
     "node": ">=18.0.0",

@@ -1,4 +1,4 @@
-# 🚀 **MANIFEST ENGINE v1.3**
+# 🚀 **MANIFEST ENGINE v1.3 (In Development)**
 ## **Create Anything. Automate Everything. Transform Reality.**
 
 <div align="center">
@@ -13,7 +13,7 @@
 
 # [📥 DOWNLOAD NOW](https://github.com/CB-PORTAL/manifest-engine-v1.3/releases/latest/download/ManifestEngine-v1.3-Installer.exe)
 
-**⬆️ Click the button above to download and install in 60 seconds ⬆️**
+**⬆️ Click the button above to download and install in 60 seconds (Features and technology not yet fully functional) ⬆️**
 
 <br>
 
@@ -25,7 +25,7 @@
 
 ## **🎯 What is Manifest Engine?**
 
-**One sentence:** Manifest Engine is an AI-powered creation and automation platform that transforms any idea into reality - from viral videos to complete businesses - in minutes instead of months.
+**One sentence:** Manifest Engine is an AI-powered creation and automation platform that transforms any idea into reality - from viral videos to games to complete businesses - in minutes instead of months.
 
 **The Problem:**
 - Creating content takes 10+ hours
@@ -289,7 +289,7 @@ Automation:
 
 ## **📄 License**
 
-MIT License - Use it however you want, even commercially!
+MIT License - Use it however you want, even commercially! Paid features available in the future for Premium & Enterprise Users. 
 
 ---
 
@@ -301,7 +301,7 @@ MIT License - Use it however you want, even commercially!
 
 Built with faith, love, and the belief that creation tools should be accessible to everyone.
 
-**Made by Devon Williams** | [Website](https://manifestengine.com) | [YouTube](https://youtube.com/@devoncarey)
+**Made by Devon Williams** | [Website](https://manifestengine.me) | [Linkedin](https://www.linkedin.com/in/devon-j-williams/) | [Upwork](https://www.upwork.com/freelancers/~012502cdc2eb026cde) | [Facebook](https://www.facebook.com/devonjwilliams/)
 
 <br>
 

@@ -110,3 +110,9 @@ private/
 *.webm
 *.mp3
 *.wav
+
+# Installer files
+tools/
+*.exe
+!dist/ManifestEngine-v1.3-Setup.exe
+build/dist/

@@ -9,6 +9,7 @@ const path = require('path');
 const fs = require('fs').promises;
 const { Server } = require('socket.io');
 const http = require('http');
+const fetch = require('node-fetch'); // ADD THIS LINE
 
 const app = express();
 const server = http.createServer(app);
@@ -21,6 +22,7 @@ app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 app.use('/uploads', express.static(path.join(__dirname, '../../data/uploads')));
+app.use('/clips', express.static(path.join(__dirname, '../../data/clips')));
 
 // Storage configuration
 const storage = multer.diskStorage({
@@ -30,14 +32,20 @@ const storage = multer.diskStorage({
     cb(null, uploadPath);
   },
   filename: (req, file, cb) => {
-    cb(null, `${Date.now()}-${file.originalname}`);
+    const uniqueName = `${Date.now()}-${Math.random().toString(36).substring(7)}-${file.originalname}`;
+    cb(null, uniqueName);
   }
 });
 
-const upload = multer({ 
+const upload = multer({
   storage,
   limits: { fileSize: 2000 * 1024 * 1024 } // 2GB
 });
+
+// Generate unique ID
+function generateId() {
+  return Date.now().toString(36) + Math.random().toString(36).substring(2);
+}
 
 // MAIN INTERFACE - COMPLETE MANIFEST ENGINE UI
 app.get('/', (req, res) => {
@@ -202,6 +210,113 @@ app.get('/', (req, res) => {
             display: inline-block;
         }
 
+        /* Processing Overlay */
+        .processing-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.9);
+            z-index: 10000;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+        }
+
+        .processing-overlay.active {
+            display: flex;
+        }
+
+        .processing-content {
+            text-align: center;
+        }
+
+        .processing-spinner {
+            width: 100px;
+            height: 100px;
+            border: 4px solid rgba(159, 122, 234, 0.3);
+            border-top: 4px solid var(--primary);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 30px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .processing-text {
+            font-size: 1.5rem;
+            margin-bottom: 10px;
+        }
+
+        .processing-status {
+            font-size: 1rem;
+            opacity: 0.8;
+        }
+
+        /* Results Panel */
+        .results-panel {
+            display: none;
+            grid-column: 1 / -1;
+            margin-top: 30px;
+        }
+
+        .results-panel.active {
+            display: block;
+        }
+
+        .clips-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+
+        .clip-card {
+            background: var(--glass);
+            border: 1px solid rgba(159, 122, 234, 0.3);
+            border-radius: 15px;
+            padding: 15px;
+            transition: all 0.3s ease;
+        }
+
+        .clip-card:hover {
+            transform: scale(1.05);
+            border-color: var(--primary);
+        }
+
+        .clip-thumbnail {
+            width: 100%;
+            height: 140px;
+            background: linear-gradient(135deg, var(--secondary) 0%, var(--primary) 100%);
+            border-radius: 10px;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2rem;
+        }
+
+        .download-btn {
+            width: 100%;
+            padding: 10px;
+            background: linear-gradient(135deg, var(--secondary) 0%, var(--primary) 100%);
+            border: none;
+            border-radius: 8px;
+            color: white;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .download-btn:hover {
+            transform: scale(1.05);
+        }
+
         /* Left Panel - Creation Tools */
         .creation-tools {
             grid-column: 1;
@@ -290,9 +405,9 @@ app.get('/', (req, res) => {
         .ai-slider {
             width: 100%;
             height: 8px;
-            background: linear-gradient(to right, 
-                #00ff00 0%, 
-                #ffff00 50%, 
+            background: linear-gradient(to right,
+                #00ff00 0%,
+                #ffff00 50%,
                 #ff00ff 100%);
             border-radius: 10px;
             outline: none;
@@ -355,6 +470,11 @@ app.get('/', (req, res) => {
             animation: pulse 2s infinite;
         }
 
+        .status-indicator.offline {
+            background: #ff0000;
+            box-shadow: 0 0 10px #ff0000;
+        }
+
         @keyframes pulse {
             0%, 100% { opacity: 1; }
             50% { opacity: 0.5; }
@@ -412,35 +532,6 @@ app.get('/', (req, res) => {
         .generate-btn:hover {
             transform: translateY(-3px) scale(1.05);
             box-shadow: 0 15px 40px rgba(159, 122, 234, 0.5);
-        }
-
-        /* Processing Animation */
-        .processing {
-            display: none;
-            position: fixed;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            z-index: 1000;
-        }
-
-        .processing.active {
-            display: block;
-        }
-
-        .quantum-loader {
-            width: 100px;
-            height: 100px;
-            border: 3px solid rgba(159, 122, 234, 0.3);
-            border-top: 3px solid var(--primary);
-            border-radius: 50%;
-            animation: quantumSpin 1s linear infinite;
-        }
-
-        @keyframes quantumSpin {
-            0% { transform: rotate(0deg) scale(1); }
-            50% { transform: rotate(180deg) scale(1.1); }
-            100% { transform: rotate(360deg) scale(1); }
         }
 
         /* API Integration Panel */
@@ -560,15 +651,15 @@ Type your creative vision and adjust the AI assistance level below to enhance yo
                 
                 <div class="status-item">
                     <span>Backend API</span>
-                    <span class="status-indicator"></span>
+                    <span class="status-indicator" id="backend-status"></span>
                 </div>
                 <div class="status-item">
                     <span>AI Engine</span>
-                    <span class="status-indicator"></span>
+                    <span class="status-indicator" id="ai-status"></span>
                 </div>
                 <div class="status-item">
                     <span>Video Processor</span>
-                    <span class="status-indicator"></span>
+                    <span class="status-indicator" id="video-status"></span>
                 </div>
                 <div class="status-item">
                     <span>Neural Network</span>
@@ -614,12 +705,25 @@ Type your creative vision and adjust the AI assistance level below to enhance yo
                 </p>
                 <input type="file" id="fileInput" style="display: none;" multiple accept="video/*,image/*,audio/*,.pdf,.docx">
             </div>
+
+            <!-- Results Panel (Initially Hidden) -->
+            <div class="panel results-panel" id="resultsPanel">
+                <div class="panel-title">
+                    <span class="panel-icon">🎉</span>
+                    Generated Clips
+                </div>
+                <div class="clips-grid" id="clipsGrid"></div>
+            </div>
         </div>
     </div>
 
     <!-- Processing Overlay -->
-    <div class="processing" id="processing">
-        <div class="quantum-loader"></div>
+    <div class="processing-overlay" id="processingOverlay">
+        <div class="processing-content">
+            <div class="processing-spinner"></div>
+            <div class="processing-text">Processing Your Video</div>
+            <div class="processing-status" id="processingStatus">Analyzing content...</div>
+        </div>
     </div>
 
     <script>
@@ -637,6 +741,28 @@ Type your creative vision and adjust the AI assistance level below to enhance yo
             }
         }
         createNeuralNetwork();
+
+        // Check service status
+        async function checkServices() {
+            // Check backend (always online since this page is served)
+            document.getElementById('backend-status').classList.remove('offline');
+            
+            // Check AI Engine
+            try {
+                const response = await fetch('http://localhost:8000/health');
+                if (response.ok) {
+                    document.getElementById('ai-status').classList.remove('offline');
+                    document.getElementById('video-status').classList.remove('offline');
+                }
+            } catch (error) {
+                document.getElementById('ai-status').classList.add('offline');
+                document.getElementById('video-status').classList.add('offline');
+            }
+        }
+        
+        // Check services every 5 seconds
+        checkServices();
+        setInterval(checkServices, 5000);
 
         // AI Assistance Level Descriptions
         const aiDescriptions = {
@@ -685,11 +811,11 @@ Type your creative vision and adjust the AI assistance level below to enhance yo
             const aiLevel = document.getElementById('aiSlider').value;
             
             // Show processing
-            document.getElementById('processing').classList.add('active');
+            showProcessing('Generating neural content...');
             
             // Simulate processing
             setTimeout(() => {
-                document.getElementById('processing').classList.remove('active');
+                hideProcessing();
                 alert('Neural Generation Complete!\\n\\nPrompt: ' + prompt.substring(0, 50) + '...\\nAI Level: ' + aiLevel + '\\n\\nYour content is being manifested...');
             }, 2000);
         }
@@ -744,21 +870,141 @@ Type your creative vision and adjust the AI assistance level below to enhance yo
             uploadZone.classList.remove('dragover');
         }
 
+        function showProcessing(status) {
+            document.getElementById('processingOverlay').classList.add('active');
+            document.getElementById('processingStatus').textContent = status;
+        }
+
+        function hideProcessing() {
+            document.getElementById('processingOverlay').classList.remove('active');
+        }
+
         function handleFiles(files) {
             if (files.length > 0) {
-                console.log('Files uploaded:', files);
-                document.getElementById('processing').classList.add('active');
+                const file = files[0];
+                console.log('File uploaded:', file);
+                
+                // Show processing overlay
+                showProcessing('Uploading ' + file.name + '...');
                 
                 // Create FormData and upload
                 const formData = new FormData();
-                formData.append('file', files[0]);
+                formData.append('file', file);
                 
-                // Simulate upload
-                setTimeout(() => {
-                    document.getElementById('processing').classList.remove('active');
-                    alert('File "' + files[0].name + '" uploaded successfully!\\n\\nProcessing will begin automatically.\\n\\nEstimated time: 30 seconds');
-                }, 1500);
+                // Upload to server
+                fetch('/api/upload', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => response.json())
+                .then(data => {
+                    console.log('Upload response:', data);
+                    
+                    // Update status
+                    showProcessing('Processing video with AI...');
+                    
+                    // Trigger AI processing
+                    return fetch('http://localhost:8000/process', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            videoId: data.videoId,
+                            filename: data.file,
+                            settings: {
+                                transcribe: true,
+                                detectScenes: true,
+                                analyzeViral: true,
+                                generateClips: true,
+                                numClips: 10,
+                                clipDuration: 30,
+                                platform: 'youtube_short'
+                            }
+                        })
+                    });
+                })
+                .then(response => response.json())
+                .then(result => {
+                    console.log('Processing result:', result);
+                    hideProcessing();
+                    
+                    // Show results
+                    displayResults(result);
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    hideProcessing();
+                    
+                    // If AI engine is not running, show mock results
+                    if (error.message.includes('Failed to fetch')) {
+                        alert('AI Engine is not running. Showing demo results.\\n\\nTo enable full functionality, ensure the AI engine is running on port 8000.');
+                        displayMockResults();
+                    } else {
+                        alert('Processing failed: ' + error.message);
+                    }
+                });
             }
+        }
+
+        function displayResults(result) {
+            const resultsPanel = document.getElementById('resultsPanel');
+            const clipsGrid = document.getElementById('clipsGrid');
+            
+            // Clear previous results
+            clipsGrid.innerHTML = '';
+            
+            // Display clips
+            if (result.clips && result.clips.length > 0) {
+                result.clips.forEach((clip, index) => {
+                    const clipCard = document.createElement('div');
+                    clipCard.className = 'clip-card';
+                    clipCard.innerHTML = \`
+                        <div class="clip-thumbnail">📹</div>
+                        <h4>Clip #\${index + 1}</h4>
+                        <p>Duration: \${clip.duration || 30}s</p>
+                        <p>Viral Score: \${Math.round((clip.viral_score || 0.75) * 100)}%</p>
+                        <button class="download-btn" onclick="downloadClip('\${clip.filename}')">
+                            Download Clip
+                        </button>
+                    \`;
+                    clipsGrid.appendChild(clipCard);
+                });
+                
+                resultsPanel.classList.add('active');
+                alert(\`Success! Generated \${result.clips.length} viral clips!\\n\\nViral Score: \${Math.round((result.viral_score || 0.8) * 100)}%\\n\\nScroll down to see your clips.\`);
+            }
+        }
+
+        function displayMockResults() {
+            const resultsPanel = document.getElementById('resultsPanel');
+            const clipsGrid = document.getElementById('clipsGrid');
+            
+            // Clear previous results
+            clipsGrid.innerHTML = '';
+            
+            // Create mock clips
+            for (let i = 1; i <= 10; i++) {
+                const clipCard = document.createElement('div');
+                clipCard.className = 'clip-card';
+                clipCard.innerHTML = \`
+                    <div class="clip-thumbnail">📹</div>
+                    <h4>Clip #\${i}</h4>
+                    <p>Duration: 30s</p>
+                    <p>Viral Score: \${75 + Math.floor(Math.random() * 20)}%</p>
+                    <button class="download-btn" onclick="alert('This is a demo. In production, this would download clip_\${i}.mp4')">
+                        Download Clip
+                    </button>
+                \`;
+                clipsGrid.appendChild(clipCard);
+            }
+            
+            resultsPanel.classList.add('active');
+        }
+
+        function downloadClip(filename) {
+            // In production, this would download the actual clip
+            window.location.href = '/clips/' + filename;
         }
 
         // WebSocket Connection for real-time updates
@@ -769,7 +1015,12 @@ Type your creative vision and adjust the AI assistance level below to enhance yo
         };
 
         ws.onmessage = (event) => {
-            console.log('Neural Update:', event.data);
+            const data = JSON.parse(event.data);
+            console.log('Neural Update:', data);
+            
+            if (data.type === 'processing-update') {
+                document.getElementById('processingStatus').textContent = data.status;
+            }
         };
 
         // Keyboard Shortcuts
@@ -784,14 +1035,18 @@ Type your creative vision and adjust the AI assistance level below to enhance yo
   `);
 });
 
-// Video Upload API
-app.post('/api/upload', upload.single('file'), (req, res) => {
+// Video Upload API - FIXED WITH AI PROCESSING CONNECTION
+app.post('/api/upload', upload.single('file'), async (req, res) => {
   if (!req.file) {
     return res.status(400).json({ error: 'No file uploaded' });
   }
+
+  const videoId = generateId();
   
+  // Send success response immediately
   res.json({
     success: true,
+    videoId: videoId,
     file: req.file.filename,
     size: req.file.size,
     message: 'File uploaded successfully'
@@ -802,7 +1057,58 @@ app.post('/api/upload', upload.single('file'), (req, res) => {
     filename: req.file.filename,
     size: req.file.size
   });
+  
+  // Trigger AI processing in background (don't await)
+  processVideoWithAI(videoId, req.file.filename);
 });
+
+// NEW FUNCTION: Process video with AI
+async function processVideoWithAI(videoId, filename) {
+  try {
+    io.emit('processing-update', { 
+      type: 'processing-update',
+      status: 'Starting AI processing...' 
+    });
+    
+    const response = await fetch('http://localhost:8000/process', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        videoId: videoId,
+        filename: filename,
+        settings: {
+          transcribe: true,
+          detectScenes: true,
+          analyzeViral: true,
+          generateClips: true,
+          numClips: 10,
+          clipDuration: 30,
+          platform: 'youtube_short'
+        }
+      })
+    });
+    
+    if (response.ok) {
+      const result = await response.json();
+      io.emit('processing-complete', {
+        type: 'processing-complete',
+        videoId: videoId,
+        clips: result.clips || [],
+        viral_score: result.viral_score || 0
+      });
+    } else {
+      throw new Error('AI processing failed');
+    }
+  } catch (error) {
+    console.error('AI processing error:', error);
+    io.emit('processing-error', {
+      type: 'processing-error',
+      error: error.message
+    });
+  }
+}
 
 // API Health Check
 app.get('/api/health', (req, res) => {
@@ -811,7 +1117,7 @@ app.get('/api/health', (req, res) => {
     version: '1.3.0',
     services: {
       backend: 'online',
-      ai: 'online',
+      ai: 'checking',
       video: 'online',
       neural: 'active'
     }
@@ -824,7 +1130,11 @@ io.on('connection', (socket) => {
   
   socket.on('process-video', (data) => {
     console.log('Processing video:', data);
-    socket.emit('processing-update', { status: 'processing', progress: 0 });
+    socket.emit('processing-update', { 
+      type: 'processing-update',
+      status: 'processing',
+      progress: 0 
+    });
   });
   
   socket.on('disconnect', () => {
@@ -835,14 +1145,15 @@ io.on('connection', (socket) => {
 // Start Server
 const PORT = process.env.PORT || 3001;
 server.listen(PORT, () => {
-console.log(`
+  console.log(`
 ╔══════════════════════════════════════════════════╗
 ║                                                  ║
 ║        MANIFEST ENGINE v1.3 - OPERATIONAL        ║
 ║                                                  ║
 ║        Neural Network: ACTIVE                    ║
-║        Server Port: ${PORT}                       ║
-║        Interface: http://localhost:${PORT}         ║
+║        Server Port: ${PORT}                     ║
+║        Interface: http://localhost:${PORT}       ║
+║        AI Engine: http://localhost:8000         ║
 ║                                                  ║
 ║        Create Anything. Manifest Everything.     ║
 ║                                                  ║
