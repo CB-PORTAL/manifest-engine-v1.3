@@ -50,9 +50,16 @@ htmlcov/
 *.db
 *.sqlite
 *.sqlite3
-data/
 
-# Uploads
+# Data folders - keep structure, ignore contents
+data/uploads/*
+data/clips/*
+data/processed/*
+!data/uploads/.gitkeep
+!data/clips/.gitkeep
+!data/processed/.gitkeep
+
+# Uploads (other locations)
 uploads/
 temp/
 cache/
@@ -94,3 +101,12 @@ secrets/
 .notes/
 .todo
 private/
+
+# Media files
+*.mp4
+*.avi
+*.mov
+*.mkv
+*.webm
+*.mp3
+*.wav
